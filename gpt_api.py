@@ -2,6 +2,7 @@ import json
 import openai
 import os
 from dotenv import load_dotenv
+import glob
 
 # Prompt used to ensure GPT returns JSON with specified quiz questions and answers
 prompt = ("You are tasked with generating a realistic, exam-like, and engaging multiple-choice question for a given Python topic/subject. "
@@ -26,7 +27,16 @@ def generate_script(user_input):
     '''Function that simply calls GPT with the provided prompt in combination with user input specifying what topic they want.
     This is how we will generate the script to put in the videos as well as TTS'''
 
-    dotenv_path = "C:\\Users\\lolly\\OneDrive\\Desktop\\Projects\\ICS31_QuizGenerator\\gptkey.env"
+    #dotenv_path = "C:\\Users\\lolly\\OneDrive\\Desktop\\Projects\\ICS31_QUIZ_GENERATOR\\gptkey.env"
+    dotenv_files = glob.glob("**/gptkey.env", recursive=True)
+
+    if dotenv_files:
+        # Grab ENV file with API key
+        dotenv_path = dotenv_files[0]
+
+    else:
+        raise FileNotFoundError("gptkey.env not found. create one w/ GPT API key.")
+    
     load_dotenv(dotenv_path, override=True) # override set to true if API key updated
     client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY")) # Grab the API key from the .env file
 
