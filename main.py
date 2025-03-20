@@ -4,6 +4,7 @@ from uuid import uuid4
 from tiktokvoice import *
 from moviepy import AudioFileClip
 from vid import *
+import glob
 
 def generate():
     # Ask what ICS 31 topic the user wants. Examples: "Loops", "Data Structures", etc
@@ -49,7 +50,13 @@ def generate():
         question = AudioFileClip(current_tts)
         audio_paths.append(question)
 
-        timer = AudioFileClip("C:\\Users\\lolly\\OneDrive\\Desktop\\Projects\\ICS31_QuizGenerator\\audio\\clock.mp3")
+        timer_files = glob.glob("**/clock.mp3", recursive=True) # Find the clock.mp3 file
+        if timer_files:
+            timer = timer_files[0]
+        else:
+            raise FileNotFoundError("clock.mp3 not found")
+        
+        timer = AudioFileClip(timer)
         audio_paths.append(timer)
     
         captions_durations.append((current_time, (current_time + question.duration + timer.duration), dict["question"] + dict["choices"]))
@@ -64,9 +71,13 @@ def generate():
         captions_durations.append((current_time, current_time + correct.duration, dict["correct"]))
         current_time += correct.duration
 
-    video_path = "C:\\Users\\lolly\\OneDrive\\Desktop\\Projects\\ICS31_QuizGenerator\\videos\\minecraft1.mp4"
+    video_files = glob.glob("**/minecraft1.mp4", recursive=True)
+    if video_files:
+        video_path = video_files[0]
+    else:
+        raise FileNotFoundError("minecraft1.mp4 not found")
 
-    combined_video_path = generate_video(video_path, audio_paths, captions_durations, 8)
+    combined_video_path = generate_video(video_path, audio_paths, captions_durations, 8, bg=True)
 
     print(f"Video successfully generated {combined_video_path}!")
 

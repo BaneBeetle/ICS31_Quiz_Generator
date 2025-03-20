@@ -1,6 +1,6 @@
 from moviepy import *
 import re
-
+import glob
 
 def split_into_sentences(text):
     """
@@ -19,15 +19,26 @@ def generate_video(video_path: str, tts_path: str, caption_duration:list, thread
     result = VideoFileClip(video_path)
     audio = concatenate_audioclips(tts_path)
 
-    if bg:
-        background_music = AudioFileClip("C:\\Users\\lolly\\OneDrive\\Desktop\\Projects\\ICS31_QuizGenerator\\audio\\wii_shop.mp3")
-        background_music = background_music.with_duration(audio.duration)
+    if bg: # If chosen to have background music, go ahead and find specified file. For this example, we using wii_shop
+
+        music_files = glob.glob("**/wii_shop.mp3", recursive=True)
+        if music_files:
+            background_music = AudioFileClip(music_files[0])
+        else:
+            raise FileNotFoundError("wii_shop.mp3 not found")
+        
+        background_music = background_music.with_duration(audio.duration) # Edit the duration of file so it matches with tts duration.
         audio = CompositeAudioClip([background_music, audio])
 
     result = result.with_audio(audio).with_duration(audio.duration).with_fps(60)
 
     subtitle_clips = []
-    font_path = "C:\\Users\\lolly\\OneDrive\\Desktop\\Projects\\ICS31_QuizGenerator\\OpenSans-ExtraBold.ttf"
+
+    font_files = glob.glob("**/OpenSans-ExtraBold.ttf", recursive=True)
+    if font_files:
+        font_path = font_files[0]
+    else:
+        raise FileNotFoundError("OpenSans-ExtraBold.ttf not found. Specify in vid.py if you want another font.")
 
     for start, end, script in caption_duration:
         duration = end - start
