@@ -1,6 +1,7 @@
 from moviepy import *
 import re
 import glob
+import os
 
 def split_into_sentences(text):
     """
@@ -13,7 +14,7 @@ def split_into_sentences(text):
     return [s.strip() for s in sentences if s.strip()]
 
 
-def generate_video(video_path: str, tts_path: str, caption_duration:list, threads: int, bg = False) -> str:
+def generate_video(user_input: str, video_path: str, tts_path: str, caption_duration:list, threads: int, bg = False) -> str:
     '''Used for ICS 31 Generation. bg auto set to False, set to True if want WII music.'''
 
     result = VideoFileClip(video_path)
@@ -74,7 +75,9 @@ def generate_video(video_path: str, tts_path: str, caption_duration:list, thread
     # Add everything together (Video with audio and captions / subtitles)
     final_clip = CompositeVideoClip([result] + subtitle_clips)
 
-    output_path = "../temp/output.mp4" # Can change to any directory you want.
+    output_directory = "../ICS31_Quiz_Generator/generated_videos"
+    os.makedirs(output_directory, exist_ok=True)
+    output_path = os.path.join(output_directory, f"{user_input}.mp4") # Can change to any directory you want.
 
     final_clip.write_videofile(
         output_path,

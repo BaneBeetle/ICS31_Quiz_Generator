@@ -77,7 +77,7 @@ def generate():
     else:
         raise FileNotFoundError("minecraft1.mp4 not found")
 
-    combined_video_path = generate_video(video_path, audio_paths, captions_durations, 8, bg=True)
+    combined_video_path = generate_video(user_input, video_path, audio_paths, captions_durations, 8, bg=True)
 
     print(f"Video successfully generated {combined_video_path}!")
 
