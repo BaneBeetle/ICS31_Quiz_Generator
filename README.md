@@ -95,4 +95,4 @@ Real-time video previews
 📫 Contact
 Made by Brian Phan —
 Connect with me: phan.brian.minh@gmail.com
-Or visit: banebeetle.com
+Or visit: www.banebeetle.com
