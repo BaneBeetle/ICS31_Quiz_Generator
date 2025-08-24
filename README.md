@@ -73,7 +73,7 @@ Python
 
 OpenAI API (GPT-3.5/4)
 
-Text-to-Speech API (e.g. TikTok, ElevenLabs)
+Text-to-Speech API (TikTok API File)
 
 FFmpeg / moviepy for video creation
 
