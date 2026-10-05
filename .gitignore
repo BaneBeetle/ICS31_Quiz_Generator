@@ -1,3 +1,55 @@
+# --- Secrets / environment (copy .env.example to .env locally) --------------
 .env
-gptkey.env
-minecraft1.mp4
+.env.*
+!.env.example
+*.env
+*.pem
+*.key
+
+# --- Python -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+ENV/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# --- Runtime output (created by the server / generator) ---------------------
+videos/
+temp/
+logs/
+*.log
+static/
+
+# --- Media: supply your own locally, never commit (see README) --------------
+audio/
+minecraft/
+*.mp4
+*.mp3
+*.wav
+
+# --- Unrelated local data ---------------------------------------------------
+datasets/
+
+# --- Node / frontend --------------------------------------------------------
+node_modules/
+frontend/build/
+npm-debug.log*
+
+# --- Editors / OS / local tooling -------------------------------------------
+.idea/
+.vscode/
+.claude/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+nul
+.docker/

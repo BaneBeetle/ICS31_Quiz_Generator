@@ -1,0 +1,22 @@
+# FastAPI and server
+fastapi==0.110.3
+uvicorn[standard]==0.27.0
+python-multipart==0.0.6
+
+# OpenAI API
+openai>=1.12.0
+
+# Environment variables
+python-dotenv==1.0.1
+
+# Video/Audio processing
+moviepy==2.0.0.dev2
+
+# HTTP requests (for TikTok TTS)
+requests==2.31.0
+
+# Terminal colors
+termcolor==2.4.0
+
+# Security - Rate limiting
+slowapi==0.1.9
