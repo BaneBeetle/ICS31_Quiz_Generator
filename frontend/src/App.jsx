@@ -48,6 +48,11 @@ function App() {
   const pollStatus = useCallback(async (id) => {
     try {
       const response = await fetch(`${API_BASE}/api/status/${id}`);
+      if (response.status === 429) {
+        // Rate limited: wait and keep polling instead of failing the job
+        setTimeout(() => pollStatus(id), 5000);
+        return;
+      }
       const data = await response.json();
 
       if (!response.ok) {
@@ -70,7 +75,7 @@ function App() {
 
       // Continue polling if still processing
       if (data.status === 'processing' || data.status === 'pending') {
-        setTimeout(() => pollStatus(id), 1000);
+        setTimeout(() => pollStatus(id), 2000);
       }
     } catch (err) {
       setError(err.message);
