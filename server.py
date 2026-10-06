@@ -381,10 +381,13 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Serve static frontend files in production
+# Serve static frontend files in production. STATIC_DIR holds the React build
+# (index.html at the top level); the hashed JS/CSS bundles that index.html
+# loads from /static/js/... and /static/css/... are in its static/ subfolder.
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+STATIC_ASSETS_DIR = os.path.join(STATIC_DIR, "static")
+if os.path.exists(STATIC_ASSETS_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_ASSETS_DIR), name="static")
 
 # CORS middleware with restricted origins
 app.add_middleware(

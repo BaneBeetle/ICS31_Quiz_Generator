@@ -58,10 +58,11 @@ command-line entry point (`python main.py`) still works.
   denied requests are written as JSON lines to `logs/audit.log`.
 - **Proxy support.** With `TRUST_PROXY=true` the client IP is taken from the first
   `X-Forwarded-For` entry (after validation); otherwise the socket peer address is used.
-- **CORS and static files.** CORS is limited to `ALLOWED_ORIGINS` (GET, POST, DELETE). If a
-  `static/` directory exists next to `server.py`, it is mounted at `/static` and `/` returns
-  `static/index.html`. Any other unmatched path returns the matching file from `static/`,
-  falling back to `index.html`.
+- **CORS and static files.** CORS is limited to `ALLOWED_ORIGINS` (GET, POST, DELETE). The
+  production frontend is the React build copied to `static/` next to `server.py`: `/` returns
+  `static/index.html`, `/static/...` serves the build's hashed JS and CSS bundles from
+  `static/static/` (missing bundles are a `404`), and any other unmatched path returns the
+  matching file from `static/`, falling back to `index.html`.
 
 Job state lives in memory, so jobs do not survive a restart and the server is meant to run as
 a single process.
@@ -217,8 +218,10 @@ the other targets (`run`, `test`, `clean`, `deploy`).
 
 `tests/test_api.py` contains 46 tests that exercise every API endpoint through FastAPI's
 `TestClient`: happy paths, input validation, ownership checks, and the capacity and
-concurrency limits. `tests/conftest.py` replaces `main`, `moviepy_config` and `tiktokvoice` with
-mocks before importing the server, so the tests need no API key, FFmpeg or ImageMagick.
+concurrency limits. `tests/test_frontend.py` serves a stand-in React build and checks that
+`index.html` and its JS/CSS bundles load. `tests/conftest.py` replaces `main`,
+`moviepy_config` and `tiktokvoice` with mocks before importing the server, so the tests need no
+API key, FFmpeg or ImageMagick.
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
