@@ -57,8 +57,10 @@ command-line entry point (`python main.py`) still works.
   to `POST /api/job/{job_id}/cleanup`).
 - **Audit log.** Job starts, completions and failures, downloads, deletions, and rejected or
   denied requests are written as JSON lines to `logs/audit.log`.
-- **Proxy support.** With `TRUST_PROXY=true` the client IP is taken from the first
-  `X-Forwarded-For` entry (after validation); otherwise the socket peer address is used.
+- **Client IP.** Job caps, ownership checks and the audit log use the connection's client
+  address. Behind Nginx, Uvicorn sets it from `X-Forwarded-For` but trusts that header only from
+  `FORWARDED_ALLOW_IPS` (default `127.0.0.1`) and takes the address Nginx appended, so a client
+  can't spoof it.
 - **CORS and static files.** CORS is limited to `ALLOWED_ORIGINS` (GET, POST, DELETE). The
   production frontend is the React build copied to `static/` next to `server.py`: `/` returns
   `static/index.html`, `/static/...` serves the build's hashed JS and CSS bundles from
@@ -176,11 +178,8 @@ python-dotenv. Docker Compose reads it to fill in `OPENAI_API_KEY`.
 | `PORT` | `8000` | Port used by `python server.py` |
 | `DEBUG` | `false` | FastAPI debug mode and console audit logging |
 | `ALLOWED_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated CORS origins |
-| `TRUST_PROXY` | `false` | Trust `X-Forwarded-For`; enable only behind a reverse proxy |
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxies whose `X-Forwarded-For` Uvicorn trusts; the default fits Nginx on the same host |
 | `REACT_APP_API_URL` | Same origin; `http://localhost:8000` under `npm start` | API base URL compiled into the frontend. Set it only if the API is on another origin |
-
-`.env.example` sets `TRUST_PROXY=true` for the Nginx deployment. Set it to `false` when the app
-is reachable directly.
 
 ### Run with Docker Compose
 

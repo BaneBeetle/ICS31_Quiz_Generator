@@ -114,10 +114,6 @@ MAX_CONCURRENT_JOBS_PER_IP = 2
 # Maximum total jobs in memory (prevent memory exhaustion)
 MAX_TOTAL_JOBS = 100
 
-# STRIDE: Spoofing - Only trust X-Forwarded-For when behind a known proxy
-# Set TRUST_PROXY=true when deploying behind Nginx/load balancer
-TRUST_PROXY = os.getenv("TRUST_PROXY", "false").lower() == "true"
-
 # =============================================================================
 # RATE LIMITER SETUP
 # =============================================================================
@@ -193,35 +189,16 @@ def validate_job_id(job_id: str) -> bool:
 
 def get_client_ip(request: Request) -> str:
     """
-    Extract client IP with secure proxy handling.
+    Client IP for job caps, ownership checks and the audit log.
 
-    STRIDE: Addresses Spoofing by only trusting X-Forwarded-For when
-    explicitly configured (behind a trusted reverse proxy like Nginx).
+    STRIDE: Addresses Spoofing. Uses the connection's client address. Behind
+    Nginx, Uvicorn's proxy-headers support has already set it from
+    X-Forwarded-For, trusting that header only from FORWARDED_ALLOW_IPS
+    (default 127.0.0.1, i.e. Nginx on the same host) and taking the address
+    Nginx appended. Parsing X-Forwarded-For here would trust its first entry,
+    which the client controls.
     """
-    if TRUST_PROXY:
-        # Only trust proxy headers when configured
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            # Take the first IP (original client) from the chain
-            ip = forwarded.split(",")[0].strip()
-            # Validate IP format to prevent injection
-            if _is_valid_ip(ip):
-                return ip
-            # Fall back to direct connection if invalid
-            return request.client.host if request.client else "unknown"
-
-    # Direct connection - use actual client IP
     return request.client.host if request.client else "unknown"
-
-
-def _is_valid_ip(ip: str) -> bool:
-    """Validate IP address format (IPv4 or IPv6)."""
-    import ipaddress
-    try:
-        ipaddress.ip_address(ip)
-        return True
-    except ValueError:
-        return False
 
 
 def verify_job_ownership(request: Request, job_id: str) -> bool:
@@ -340,7 +317,6 @@ async def lifespan(app: FastAPI):
 
     print(f"[Startup] Auto-cleanup enabled: videos expire after {VIDEO_MAX_AGE_MINUTES} minutes")
     print(f"[Startup] Rate limits: generate={RATE_LIMIT_GENERATE}, status={RATE_LIMIT_STATUS}")
-    print(f"[Startup] Trust proxy: {TRUST_PROXY}")
     print(f"[Startup] Audit logging to: {LOGS_DIR}/audit.log")
 
     # Clean up generated videos (<uuid>.mp4) left over from previous runs.
