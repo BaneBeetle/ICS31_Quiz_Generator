@@ -101,11 +101,16 @@ jobs:
       - name: Build image
         run: docker compose build quiz-generator
 
+      # ImageMagick only warns (exit code 0) when it can't read a font and then
+      # falls back to its default one, so check its output for font errors.
       - name: Render a caption inside the image
         run: |
           docker compose run --rm --no-deps -T quiz-generator python -c "
-          import os, main
+          import os, subprocess, main
+          from moviepy.config import IMAGEMAGICK_BINARY
           assert os.path.isfile(main.FONT_PATH), main.FONT_PATH
+          check = subprocess.run([IMAGEMAGICK_BINARY, '-font', main.CAPTION_FONT, 'label:Quiz', 'null:'], capture_output=True, text=True)
+          assert check.returncode == 0 and 'font' not in check.stderr.lower(), check.stderr
           main.create_caption_text_clip('Docker smoke test', 1.0)
           "
 

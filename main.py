@@ -23,6 +23,11 @@ VIDEOS_DIR = os.path.join(BASE_DIR, "videos")
 AUDIO_DIR = os.path.join(BASE_DIR, "audio")
 MINECRAFT_DIR = os.path.join(BASE_DIR, "minecraft")
 FONT_PATH = os.path.join(BASE_DIR, "OpenSans-ExtraBold.ttf")
+# The font as ImageMagick takes it: a plain file path with forward slashes, since
+# it treats backslashes as escapes. An "@" prefix is not a font-file marker for
+# ImageMagick 7: it reads the file's bytes as the font name, then silently falls
+# back to its default font.
+CAPTION_FONT = FONT_PATH.replace(os.sep, "/")
 
 # Video dimensions - reduced for lower memory usage
 VIDEO_WIDTH = 576  # Reduced from 720
@@ -93,14 +98,11 @@ def create_caption_text_clip(text, duration, position='center'):
     # Clean up text formatting
     formatted_text = text.replace("\\n", "\n")
 
-    # Use @ prefix to tell ImageMagick to read font directly from file path
-    font_reference = f"@{FONT_PATH}"
-
     text_clip = TextClip(
         txt=formatted_text,
         fontsize=65,  # Reduced from 80 for smaller resolution
         color='white',
-        font=font_reference,
+        font=CAPTION_FONT,
         size=(VIDEO_WIDTH - 30, None),
         method='caption',
         align='center',
