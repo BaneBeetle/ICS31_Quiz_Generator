@@ -31,7 +31,7 @@ command-line entry point (`python main.py`) still works.
 4. **Render.** The background clip is resized to 576 px wide and looped or trimmed to the
    narration length. Captions are rendered by ImageMagick in Open Sans ExtraBold and
    composited on top, and the result is encoded as H.264/AAC (24 fps, `ultrafast` preset,
-   CRF 28) to `videos/<uuid>.mp4`.
+   CRF 28) to `videos/<uuid>.mp4`. MoviePy's temporary soundtrack is written to `temp/`.
 
 ### Backend (`server.py`)
 
@@ -99,7 +99,8 @@ build/start time, overrides both.
   - `deploy/setup_service.sh` installs an `ics31-quiz` systemd unit that runs
     `python server.py` with the environment from `.env`. It sets `Restart=always` and
     sandboxing options (`NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome=read-only`,
-    `PrivateTmp`).
+    `PrivateTmp`) that leave only `videos/`, `temp/` and `logs/` writable
+    (`ReadWritePaths`), and it creates those directories before starting the service.
   - `deploy/setup_nginx.sh` puts Nginx in front on port 80. It adds per-IP rate limits (1
     request/minute with a burst of 2 for `/api/generate`, 10 requests/second elsewhere), a 1 KB
     request-body limit, short client timeouts, security headers and unbuffered video
@@ -222,7 +223,10 @@ concurrency limits. `tests/test_frontend.py` serves a stand-in React build and c
 startup deletes leftover generated videos but not other files in `videos/`.
 `tests/conftest.py` replaces `main`, `moviepy_config` and `tiktokvoice` with mocks before
 importing the server, and points the server at temporary `static/` and `videos/` folders, so
-the tests need no API key, FFmpeg or ImageMagick and never touch your build or videos.
+the tests need no API key, system FFmpeg or ImageMagick and never touch your build or videos.
+`tests/test_pipeline.py` runs `main.py`'s real MoviePy code on a tiny synthetic clip, using
+the FFmpeg binary that `imageio-ffmpeg` installs, and checks that the temporary soundtrack
+goes to `temp/` rather than the working directory.
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt

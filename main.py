@@ -111,6 +111,27 @@ def create_caption_text_clip(text, duration, position='center'):
     return text_clip
 
 
+def write_video(clip, output_path):
+    """Encode the final video with settings tuned for low-memory environments.
+
+    MoviePy first renders the soundtrack to a temporary file, by default in the
+    current working directory. Keep it in temp/ instead: the working directory
+    is read-only under the systemd unit, and temp/ is purged of leftovers.
+    """
+    clip.write_videofile(
+        output_path,
+        fps=24,
+        codec='libx264',
+        audio_codec='aac',
+        preset='ultrafast',  # Fastest encoding, lowest memory
+        threads=2,  # Reduced threads for low-memory
+        bitrate='1500k',  # Lower bitrate for smaller files
+        audio_bitrate='128k',
+        ffmpeg_params=['-crf', '28'],  # Higher CRF = smaller file, slightly lower quality
+        temp_audiofile_path=TEMP_DIR
+    )
+
+
 def cleanup_temp_files(file_paths):
     """Clean up temporary audio files"""
     for filepath in file_paths:
@@ -272,18 +293,7 @@ def generate(topic: str, progress_callback=None) -> str:
 
         update_progress(90, "Exporting video...")
 
-        # Optimized encoding settings for low-memory environments
-        final_video.write_videofile(
-            output_path,
-            fps=24,
-            codec='libx264',
-            audio_codec='aac',
-            preset='ultrafast',  # Fastest encoding, lowest memory
-            threads=2,  # Reduced threads for low-memory
-            bitrate='1500k',  # Lower bitrate for smaller files
-            audio_bitrate='128k',
-            ffmpeg_params=['-crf', '28']  # Higher CRF = smaller file, slightly lower quality
-        )
+        write_video(final_video, output_path)
 
         # Close all clips to free resources
         final_video.close()

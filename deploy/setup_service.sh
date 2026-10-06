@@ -47,11 +47,13 @@ ExecStart=/home/ubuntu/ics31-quiz/venv/bin/python server.py
 Restart=always
 RestartSec=10
 
-# Security hardening
+# Security hardening. The app directory is read-only except for what the
+# app writes: generated videos, temp files (TTS clips and MoviePy's
+# temporary soundtrack) and logs/audit.log.
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/ubuntu/ics31-quiz/videos /home/ubuntu/ics31-quiz/temp
+ReadWritePaths=/home/ubuntu/ics31-quiz/videos /home/ubuntu/ics31-quiz/temp /home/ubuntu/ics31-quiz/logs
 PrivateTmp=true
 
 [Install]
@@ -61,6 +63,11 @@ EOF
 # Secure the .env file permissions (only owner can read)
 chmod 600 "$ENV_FILE"
 echo "Secured .env file permissions (chmod 600)"
+
+# The writable directories must exist before the service starts: systemd
+# refuses to start a unit whose ReadWritePaths are missing, and the app
+# can't create them inside its read-only directory.
+sudo install -d -o ubuntu -g ubuntu "$APP_DIR/videos" "$APP_DIR/temp" "$APP_DIR/logs"
 
 # Reload systemd and enable service
 sudo systemctl daemon-reload
