@@ -23,8 +23,10 @@ def load_module(name, filename):
     return module
 
 
-# conftest.py replaces the `main` module with a mock (and stubs tiktokvoice
-# and moviepy_config), so load the real file under another name.
+# conftest.py replaces the `main` and `moviepy_config` modules with mocks (and
+# stubs tiktokvoice), so load the real files under other names. main.py
+# imports moviepy_config first to set MoviePy up; do the same here.
+load_module("quiz_moviepy_config", "moviepy_config.py")
 pipeline = load_module("quiz_pipeline", "main.py")
 
 
@@ -66,3 +68,15 @@ def test_write_video_keeps_temp_soundtrack_out_of_working_dir(tmp_path, monkeypa
     assert [path.parent for path in soundtracks] == [temp_dir.resolve()]
     assert list(workdir.iterdir()) == []
     assert list(temp_dir.iterdir()) == []  # MoviePy deletes it when done
+
+
+def test_frames_can_be_resized():
+    """Regression: main.py resizes the background clip with MoviePy's resize
+    effect, which in MoviePy 2.0.0.dev2 uses Image.ANTIALIAS. Pillow 10
+    removed that name, so with current Pillow every generation failed."""
+    from moviepy.video.fx.resize import resize
+
+    clip = ColorClip(size=(64, 64), color=(0, 128, 255), duration=0.5)
+    frame = clip.fx(resize, width=32).get_frame(0)
+
+    assert frame.shape == (32, 32, 3)

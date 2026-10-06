@@ -225,8 +225,9 @@ startup deletes leftover generated videos but not other files in `videos/`.
 importing the server, and points the server at temporary `static/` and `videos/` folders, so
 the tests need no API key, system FFmpeg or ImageMagick and never touch your build or videos.
 `tests/test_pipeline.py` runs `main.py`'s real MoviePy code on a tiny synthetic clip, using
-the FFmpeg binary that `imageio-ffmpeg` installs, and checks that the temporary soundtrack
-goes to `temp/` rather than the working directory.
+the FFmpeg binary that `imageio-ffmpeg` installs. It checks that the temporary soundtrack goes
+to `temp/` rather than the working directory, and that frames can be resized with the
+installed Pillow.
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
@@ -247,7 +248,7 @@ server.py               FastAPI app: job API, validation, limits, cleanup, audit
 main.py                 Video pipeline (also the CLI: python main.py)
 gpt_api.py              OpenAI question generation
 tiktokvoice.py          TikTok TTS client
-moviepy_config.py       Finds ImageMagick for MoviePy on Windows
+moviepy_config.py       Finds ImageMagick for MoviePy on Windows; restores a Pillow alias MoviePy uses
 install_font.py         Installs the caption font for the current user
 OpenSans-ExtraBold.ttf  Caption font (SIL Open Font License 1.1)
 frontend/               React app (Create React App)

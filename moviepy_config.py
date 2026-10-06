@@ -1,5 +1,6 @@
 # MoviePy ImageMagick Configuration
-# This file configures MoviePy to find ImageMagick on Windows
+# This file configures MoviePy to find ImageMagick on Windows, and keeps
+# MoviePy working with current Pillow releases
 
 import os
 
@@ -50,5 +51,15 @@ def configure_moviepy():
         print("Please install ImageMagick from: https://imagemagick.org/script/download.php#windows")
         return False
 
+def restore_pillow_antialias():
+    """MoviePy 2.0.0.dev2's resize effect uses Image.ANTIALIAS, which Pillow 10
+    removed. It was an alias for LANCZOS, so restore it."""
+    from PIL import Image
+
+    if not hasattr(Image, "ANTIALIAS"):
+        Image.ANTIALIAS = Image.LANCZOS
+
+
 # Auto-configure when imported
 configure_moviepy()
+restore_pillow_antialias()
