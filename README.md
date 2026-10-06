@@ -79,13 +79,14 @@ build/start time, overrides both.
 
 ### Packaging and deployment
 
-- **Docker.** The multi-stage `Dockerfile` builds the React app on `node:18-alpine`, then, on
-  `python:3.12-slim`, installs FFmpeg, ImageMagick (with the policy change MoviePy needs to
-  render text) and the Python dependencies, copies the backend modules and the React build
-  (as `static/`), and runs `uvicorn server:app` on port 8000. `docker-compose.yml` runs that
-  image with `OPENAI_API_KEY` taken from your environment or `.env`, mounts `videos/` and
-  `temp/`, and defines a health check on `/api/health`. A `dev` profile adds the React dev
-  server on port 3000.
+- **Docker.** The multi-stage `Dockerfile` builds the React app on `node:20-alpine` with
+  `npm ci`, then, on `python:3.12-slim` (Debian trixie), installs FFmpeg, ImageMagick (with the
+  policy change MoviePy needs to render text) and the Python dependencies, copies the backend
+  modules, the caption font and the React build (as `static/`), and runs `uvicorn server:app`
+  on port 8000. `docker-compose.yml` runs that image with `OPENAI_API_KEY` taken from your
+  environment or `.env`, mounts `videos/` and `temp/`, mounts your `audio/` and `minecraft/`
+  media read-only, and defines a health check on `/api/health` (a Python one-liner, since the
+  image has no curl). A `dev` profile adds the React dev server on port 3000.
 - **Docker on EC2.** `deploy/ec2-setup.sh` installs Docker, Docker Compose and Git on Amazon
   Linux or Ubuntu, and `deploy/deploy.sh` pulls the repository, rebuilds the containers and
   checks `/api/health`. See [deploy/README.md](deploy/README.md).
@@ -157,17 +158,9 @@ rights to use. `audio/`, `minecraft/` and all `.mp3`/`.mp4` files are git-ignore
 Don't put the background clip in `videos/`, because the server deletes `.mp4` files there on
 startup. A 9:16 clip fills the frame; other clips are still scaled to 576 px wide.
 
-The Docker image contains neither the media nor the font. Mount them, for example with a
-`docker-compose.override.yml`:
-
-```yaml
-services:
-  quiz-generator:
-    volumes:
-      - ./audio:/app/audio:ro
-      - ./minecraft:/app/minecraft:ro
-      - ./OpenSans-ExtraBold.ttf:/app/OpenSans-ExtraBold.ttf:ro
-```
+The Docker image includes the font but no media. `docker-compose.yml` mounts `audio/` and
+`minecraft/` from the project directory into the container read-only, so put your files there
+before `docker compose up`.
 
 ### Configuration
 
@@ -190,6 +183,7 @@ is reachable directly.
 
 ```bash
 cp .env.example .env              # then set OPENAI_API_KEY
+# put your media in audio/ and minecraft/ (see "Media files")
 docker compose up --build         # http://localhost:8000
 docker compose --profile dev up   # also starts the React dev server on :3000
 ```
@@ -231,9 +225,11 @@ pytest tests/ -v                  # or: make test
 ```
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on pushes and pull requests to `main`. One job
-runs the test suite on Python 3.12. The other runs `npm ci` and `npm run build` for the frontend
+runs the test suite on Python 3.12. Another runs `npm ci` and `npm run build` for the frontend
 on Node.js 20, fails if the bundle hardcodes `http://localhost:8000`, and uploads the build as
-an artifact for 7 days.
+an artifact for 7 days. A third builds the Docker image (it is not pushed), renders a caption
+inside it, waits for the Compose health check, and checks that the frontend and its bundles
+load.
 
 ## Project layout
 

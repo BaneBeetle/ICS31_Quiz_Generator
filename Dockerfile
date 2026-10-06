@@ -1,9 +1,9 @@
-# Build stage for React frontend
-FROM node:18-alpine AS frontend-build
+# Build stage for React frontend (same Node version and lockfile install as CI)
+FROM node:20-alpine AS frontend-build
 
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm install
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
@@ -17,8 +17,11 @@ RUN apt-get update && apt-get install -y \
     fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
-# Configure ImageMagick policy for MoviePy text rendering
-RUN sed -i 's/rights="none" pattern="@\*"/rights="read|write" pattern="@*"/' /etc/ImageMagick-6/policy.xml || true
+# Configure ImageMagick policy for MoviePy text rendering: MoviePy passes each
+# caption to ImageMagick as caption:@<temp file>, which Debian's policy blocks.
+# python:3.12-slim is Debian trixie, which ships ImageMagick 7; the glob also
+# matches ImageMagick 6, and the build fails if neither policy file exists.
+RUN sed -i 's/rights="none" pattern="@\*"/rights="read|write" pattern="@*"/' /etc/ImageMagick-*/policy.xml
 
 WORKDIR /app
 
@@ -32,6 +35,9 @@ COPY gpt_api.py .
 COPY tiktokvoice.py .
 COPY server.py .
 COPY moviepy_config.py .
+
+# Caption font (main.py passes it to ImageMagick by path)
+COPY OpenSans-ExtraBold.ttf .
 
 # Copy built frontend from build stage
 COPY --from=frontend-build /app/frontend/build ./static

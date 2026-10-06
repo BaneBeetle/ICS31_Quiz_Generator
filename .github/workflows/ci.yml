@@ -82,3 +82,50 @@ jobs:
           path: frontend/build/
           # Keep artifacts for 7 days so deploys can pull the latest build
           retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # docker — build the image (it is never pushed) and smoke-test it
+  #
+  # Catches what the mocked unit tests can't: captions need ImageMagick, its
+  # policy change and the font inside the image; the compose health check must
+  # pass; and the image must serve the frontend with its JS/CSS.
+  # ---------------------------------------------------------------------------
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker compose build quiz-generator
+
+      - name: Render a caption inside the image
+        run: |
+          docker compose run --rm --no-deps -T quiz-generator python -c "
+          import os, main
+          assert os.path.isfile(main.FONT_PATH), main.FONT_PATH
+          main.create_caption_text_clip('Docker smoke test', 1.0)
+          "
+
+      - name: Start the service and wait for its health check
+        run: docker compose up -d --wait --wait-timeout 180 quiz-generator
+
+      - name: Check the frontend and its bundles load
+        run: |
+          curl -fsS http://localhost:8000/ -o index.html
+          assets=$(grep -oE '/static/(js|css)/[^"]+' index.html)
+          test -n "$assets"
+          for asset in $assets; do
+            echo "GET $asset"
+            curl -fsS -o /dev/null "http://localhost:8000$asset"
+          done
+
+      - name: Show service logs
+        if: always()
+        run: docker compose logs quiz-generator
+
+      - name: Stop the service
+        if: always()
+        run: docker compose down
