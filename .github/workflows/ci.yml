@@ -65,6 +65,16 @@ jobs:
       - name: Build React app
         run: cd frontend && npm run build
 
+      # The production bundle must call the API on its own origin. A hardcoded
+      # http://localhost:8000 only works in a browser running on the server.
+      # (Source maps contain the original source, so only *.js is checked.)
+      - name: Check the build has no hardcoded API URL
+        run: |
+          if grep -l "localhost:8000" frontend/build/static/js/*.js; then
+            echo "::error::The production bundle hardcodes http://localhost:8000"
+            exit 1
+          fi
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:

@@ -72,8 +72,10 @@ a single process.
 A Create React App (React 18) page with three states: a topic form with suggestion chips and
 client-side validation that mirrors the server rules, a progress screen driven by status
 polling, and a player that streams the finished video with Download and Generate New Quiz
-buttons. It calls the API at `REACT_APP_API_URL`, which is read at build/start time and
-defaults to `http://localhost:8000`.
+buttons. The production build calls the API on the origin it is served from (relative
+`/api/...` URLs), so it works wherever FastAPI or Nginx serves it. The development server
+(`npm start`, port 3000) calls `http://localhost:8000`. `REACT_APP_API_URL`, read at
+build/start time, overrides both.
 
 ### Packaging and deployment
 
@@ -179,7 +181,7 @@ python-dotenv. Docker Compose reads it to fill in `OPENAI_API_KEY`.
 | `DEBUG` | `false` | FastAPI debug mode and console audit logging |
 | `ALLOWED_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated CORS origins |
 | `TRUST_PROXY` | `false` | Trust `X-Forwarded-For`; enable only behind a reverse proxy |
-| `REACT_APP_API_URL` | `http://localhost:8000` | API base URL compiled into the frontend |
+| `REACT_APP_API_URL` | Same origin; `http://localhost:8000` under `npm start` | API base URL compiled into the frontend. Set it only if the API is on another origin |
 
 `.env.example` sets `TRUST_PROXY=true` for the Nginx deployment. Set it to `false` when the app
 is reachable directly.
@@ -230,7 +232,8 @@ pytest tests/ -v                  # or: make test
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on pushes and pull requests to `main`. One job
 runs the test suite on Python 3.12. The other runs `npm ci` and `npm run build` for the frontend
-on Node.js 20 and uploads the build as an artifact for 7 days.
+on Node.js 20, fails if the bundle hardcodes `http://localhost:8000`, and uploads the build as
+an artifact for 7 days.
 
 ## Project layout
 
