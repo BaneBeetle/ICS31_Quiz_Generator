@@ -50,8 +50,9 @@ command-line entry point (`python main.py`) still works.
   endpoints: 30/minute), at most 2 active jobs per client IP (`429`), and at most 100 jobs in
   memory (`503`).
 - **Cleanup.** A background task runs every 5 minutes and removes jobs and videos older than
-  30 minutes and orphaned `temp/` files older than 1 hour. Leftover `.mp4` files in `videos/`
-  are deleted at startup, and job videos at shutdown. The frontend deletes its job when the
+  30 minutes and orphaned `temp/` files older than 1 hour. Leftover generated videos
+  (`videos/<uuid>.mp4`) are deleted at startup, and job videos at shutdown; other files in
+  `videos/` are never deleted. The frontend deletes its job when the
   user starts a new quiz (`DELETE /api/job/{job_id}`) or closes the tab (`navigator.sendBeacon`
   to `POST /api/job/{job_id}/cleanup`).
 - **Audit log.** Job starts, completions and failures, downloads, deletions, and rejected or
@@ -155,8 +156,9 @@ rights to use. `audio/`, `minecraft/` and all `.mp3`/`.mp4` files are git-ignore
 | `wii_shop.mp3`, background music | No | Anywhere under the project directory, e.g. `audio/wii_shop.mp3` |
 | `OpenSans-ExtraBold.ttf`, caption font | Included | Project root |
 
-Don't put the background clip in `videos/`, because the server deletes `.mp4` files there on
-startup. A 9:16 clip fills the frame; other clips are still scaled to 576 px wide.
+Keep media in `audio/` and `minecraft/`. `videos/` holds generated output, and the server only
+ever deletes the `<uuid>.mp4` files it generated there. A 9:16 clip fills the frame; other
+clips are still scaled to 576 px wide.
 
 The Docker image includes the font but no media. `docker-compose.yml` mounts `audio/` and
 `minecraft/` from the project directory into the container read-only, so put your files there
@@ -208,16 +210,19 @@ the other targets (`run`, `test`, `clean`, `deploy`).
 
 ### Command-line mode
 
-`python main.py` prompts for a topic and writes the video to `videos/`.
+`python main.py` prompts for a topic and writes the video to `videos/<uuid>.mp4`. Move it
+elsewhere to keep it: the server deletes generated videos left in `videos/` when it starts.
 
 ## Tests and CI
 
 `tests/test_api.py` contains 46 tests that exercise every API endpoint through FastAPI's
 `TestClient`: happy paths, input validation, ownership checks, and the capacity and
 concurrency limits. `tests/test_frontend.py` serves a stand-in React build and checks that
-`index.html` and its JS/CSS bundles load. `tests/conftest.py` replaces `main`,
-`moviepy_config` and `tiktokvoice` with mocks before importing the server, so the tests need no
-API key, FFmpeg or ImageMagick.
+`index.html` and its JS/CSS bundles load, and `tests/test_startup_cleanup.py` checks that
+startup deletes leftover generated videos but not other files in `videos/`.
+`tests/conftest.py` replaces `main`, `moviepy_config` and `tiktokvoice` with mocks before
+importing the server, and points the server at temporary `static/` and `videos/` folders, so
+the tests need no API key, FFmpeg or ImageMagick and never touch your build or videos.
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt

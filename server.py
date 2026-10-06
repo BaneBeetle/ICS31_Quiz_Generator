@@ -99,6 +99,8 @@ VIDEO_MAX_AGE_MINUTES = 30
 CLEANUP_INTERVAL_SECONDS = 300
 # [ADDED] Orphaned temp files (e.g. from crashed jobs) older than this are purged
 TEMP_MAX_AGE_HOURS = 1
+# main.generate() writes each video to videos/<uuid4>.mp4
+VIDEOS_DIR = os.path.join(os.path.dirname(__file__), "videos")
 
 # CORS configuration
 ALLOWED_ORIGINS = os.getenv(
@@ -341,12 +343,13 @@ async def lifespan(app: FastAPI):
     print(f"[Startup] Trust proxy: {TRUST_PROXY}")
     print(f"[Startup] Audit logging to: {LOGS_DIR}/audit.log")
 
-    # Clean up leftover videos from previous runs
-    videos_dir = os.path.join(os.path.dirname(__file__), "videos")
-    if os.path.exists(videos_dir):
-        for filename in os.listdir(videos_dir):
-            if filename.endswith(".mp4"):
-                filepath = os.path.join(videos_dir, filename)
+    # Clean up generated videos (<uuid>.mp4) left over from previous runs.
+    # Other files in videos/, such as media a user put there, are kept.
+    if os.path.exists(VIDEOS_DIR):
+        for filename in os.listdir(VIDEOS_DIR):
+            stem, ext = os.path.splitext(filename)
+            if ext == ".mp4" and UUID_PATTERN.match(stem):
+                filepath = os.path.join(VIDEOS_DIR, filename)
                 try:
                     os.remove(filepath)
                     print(f"[Startup] Cleaned up leftover video: {filename}")

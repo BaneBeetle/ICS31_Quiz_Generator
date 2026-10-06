@@ -21,6 +21,7 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMP_DIR = os.path.join(BASE_DIR, "temp")
 VIDEOS_DIR = os.path.join(BASE_DIR, "videos")
 AUDIO_DIR = os.path.join(BASE_DIR, "audio")
+MINECRAFT_DIR = os.path.join(BASE_DIR, "minecraft")
 FONT_PATH = os.path.join(BASE_DIR, "OpenSans-ExtraBold.ttf")
 
 # Video dimensions - reduced for lower memory usage
@@ -39,11 +40,11 @@ def find_background_video():
     video_files = glob.glob(os.path.join(BASE_DIR, "**", "minecraft1*.mp4"), recursive=True)
     if video_files:
         return video_files[0]
-    # Fallback to videos directory
-    fallback = os.path.join(VIDEOS_DIR, "minecraft1.mp4")
+    # Fallback to minecraft directory (videos/ is for generated output only)
+    fallback = os.path.join(MINECRAFT_DIR, "minecraft1.mp4")
     if os.path.exists(fallback):
         return fallback
-    raise FileNotFoundError("minecraft1.mp4 not found. Please add it to the videos folder.")
+    raise FileNotFoundError("minecraft1.mp4 not found. Please add it to the minecraft folder.")
 
 
 def find_timer_audio():
