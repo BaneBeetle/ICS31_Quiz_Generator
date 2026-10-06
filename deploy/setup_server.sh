@@ -31,8 +31,15 @@ sudo apt install -y imagemagick
 
 # Fix ImageMagick policy to allow text operations
 echo "[6/8] Configuring ImageMagick policy..."
-sudo sed -i 's/rights="none" pattern="@\*"/rights="read|write" pattern="@*"/' /etc/ImageMagick-6/policy.xml 2>/dev/null || true
-sudo sed -i 's/<policy domain="path" rights="none" pattern="@\*"\/>/<policy domain="path" rights="read|write" pattern="@*"\/>/' /etc/ImageMagick-6/policy.xml 2>/dev/null || true
+# Ubuntu 24.04 ships ImageMagick 6; newer releases ship ImageMagick 7.
+POLICY_FILES=$(ls /etc/ImageMagick-*/policy.xml 2>/dev/null || true)
+if [ -z "$POLICY_FILES" ]; then
+    echo "ERROR: no ImageMagick policy.xml found; captions would not render" >&2
+    exit 1
+fi
+for f in $POLICY_FILES; do
+    sudo sed -i 's/rights="none" pattern="@\*"/rights="read|write" pattern="@*"/' "$f"
+done
 
 # Create swap file for memory management (important for t3.small)
 echo "[7/8] Creating swap file (2GB)..."
