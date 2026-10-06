@@ -65,6 +65,16 @@ jobs:
       - name: Build React app
         run: cd frontend && npm run build
 
+      # The production bundle must call the API on its own origin. A hardcoded
+      # http://localhost:8000 only works in a browser running on the server.
+      # (Source maps contain the original source, so only *.js is checked.)
+      - name: Check the build has no hardcoded API URL
+        run: |
+          if grep -l "localhost:8000" frontend/build/static/js/*.js; then
+            echo "::error::The production bundle hardcodes http://localhost:8000"
+            exit 1
+          fi
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
@@ -72,3 +82,55 @@ jobs:
           path: frontend/build/
           # Keep artifacts for 7 days so deploys can pull the latest build
           retention-days: 7
+
+  # ---------------------------------------------------------------------------
+  # docker — build the image (it is never pushed) and smoke-test it
+  #
+  # Catches what the mocked unit tests can't: captions need ImageMagick, its
+  # policy change and the font inside the image; the compose health check must
+  # pass; and the image must serve the frontend with its JS/CSS.
+  # ---------------------------------------------------------------------------
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker compose build quiz-generator
+
+      # ImageMagick only warns (exit code 0) when it can't read a font and then
+      # falls back to its default one, so check its output for font errors.
+      - name: Render a caption inside the image
+        run: |
+          docker compose run --rm --no-deps -T quiz-generator python -c "
+          import os, subprocess, main
+          from moviepy.config import IMAGEMAGICK_BINARY
+          assert os.path.isfile(main.FONT_PATH), main.FONT_PATH
+          check = subprocess.run([IMAGEMAGICK_BINARY, '-font', main.CAPTION_FONT, 'label:Quiz', 'null:'], capture_output=True, text=True)
+          assert check.returncode == 0 and 'font' not in check.stderr.lower(), check.stderr
+          main.create_caption_text_clip('Docker smoke test', 1.0)
+          "
+
+      - name: Start the service and wait for its health check
+        run: docker compose up -d --wait --wait-timeout 180 quiz-generator
+
+      - name: Check the frontend and its bundles load
+        run: |
+          curl -fsS http://localhost:8000/ -o index.html
+          assets=$(grep -oE '/static/(js|css)/[^"]+' index.html)
+          test -n "$assets"
+          for asset in $assets; do
+            echo "GET $asset"
+            curl -fsS -o /dev/null "http://localhost:8000$asset"
+          done
+
+      - name: Show service logs
+        if: always()
+        run: docker compose logs quiz-generator
+
+      - name: Stop the service
+        if: always()
+        run: docker compose down

@@ -39,7 +39,7 @@ cp -r frontend/build static
 
 # Create directories
 echo "[6/6] Creating required directories..."
-mkdir -p videos temp
+mkdir -p videos temp logs
 
 echo ""
 echo "=========================================="

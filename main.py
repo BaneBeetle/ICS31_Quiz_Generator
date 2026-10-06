@@ -21,7 +21,13 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMP_DIR = os.path.join(BASE_DIR, "temp")
 VIDEOS_DIR = os.path.join(BASE_DIR, "videos")
 AUDIO_DIR = os.path.join(BASE_DIR, "audio")
+MINECRAFT_DIR = os.path.join(BASE_DIR, "minecraft")
 FONT_PATH = os.path.join(BASE_DIR, "OpenSans-ExtraBold.ttf")
+# The font as ImageMagick takes it: a plain file path with forward slashes, since
+# it treats backslashes as escapes. An "@" prefix is not a font-file marker for
+# ImageMagick 7: it reads the file's bytes as the font name, then silently falls
+# back to its default font.
+CAPTION_FONT = FONT_PATH.replace(os.sep, "/")
 
 # Video dimensions - reduced for lower memory usage
 VIDEO_WIDTH = 576  # Reduced from 720
@@ -39,11 +45,11 @@ def find_background_video():
     video_files = glob.glob(os.path.join(BASE_DIR, "**", "minecraft1*.mp4"), recursive=True)
     if video_files:
         return video_files[0]
-    # Fallback to videos directory
-    fallback = os.path.join(VIDEOS_DIR, "minecraft1.mp4")
+    # Fallback to minecraft directory (videos/ is for generated output only)
+    fallback = os.path.join(MINECRAFT_DIR, "minecraft1.mp4")
     if os.path.exists(fallback):
         return fallback
-    raise FileNotFoundError("minecraft1.mp4 not found. Please add it to the videos folder.")
+    raise FileNotFoundError("minecraft1.mp4 not found. Please add it to the minecraft folder.")
 
 
 def find_timer_audio():
@@ -92,14 +98,11 @@ def create_caption_text_clip(text, duration, position='center'):
     # Clean up text formatting
     formatted_text = text.replace("\\n", "\n")
 
-    # Use @ prefix to tell ImageMagick to read font directly from file path
-    font_reference = f"@{FONT_PATH}"
-
     text_clip = TextClip(
         txt=formatted_text,
         fontsize=65,  # Reduced from 80 for smaller resolution
         color='white',
-        font=font_reference,
+        font=CAPTION_FONT,
         size=(VIDEO_WIDTH - 30, None),
         method='caption',
         align='center',
@@ -108,6 +111,27 @@ def create_caption_text_clip(text, duration, position='center'):
     ).set_duration(duration).set_position(('center', position))
 
     return text_clip
+
+
+def write_video(clip, output_path):
+    """Encode the final video with settings tuned for low-memory environments.
+
+    MoviePy first renders the soundtrack to a temporary file, by default in the
+    current working directory. Keep it in temp/ instead: the working directory
+    is read-only under the systemd unit, and temp/ is purged of leftovers.
+    """
+    clip.write_videofile(
+        output_path,
+        fps=24,
+        codec='libx264',
+        audio_codec='aac',
+        preset='ultrafast',  # Fastest encoding, lowest memory
+        threads=2,  # Reduced threads for low-memory
+        bitrate='1500k',  # Lower bitrate for smaller files
+        audio_bitrate='128k',
+        ffmpeg_params=['-crf', '28'],  # Higher CRF = smaller file, slightly lower quality
+        temp_audiofile_path=TEMP_DIR
+    )
 
 
 def cleanup_temp_files(file_paths):
@@ -271,18 +295,7 @@ def generate(topic: str, progress_callback=None) -> str:
 
         update_progress(90, "Exporting video...")
 
-        # Optimized encoding settings for low-memory environments
-        final_video.write_videofile(
-            output_path,
-            fps=24,
-            codec='libx264',
-            audio_codec='aac',
-            preset='ultrafast',  # Fastest encoding, lowest memory
-            threads=2,  # Reduced threads for low-memory
-            bitrate='1500k',  # Lower bitrate for smaller files
-            audio_bitrate='128k',
-            ffmpeg_params=['-crf', '28']  # Higher CRF = smaller file, slightly lower quality
-        )
+        write_video(final_video, output_path)
 
         # Close all clips to free resources
         final_video.close()

@@ -99,6 +99,8 @@ VIDEO_MAX_AGE_MINUTES = 30
 CLEANUP_INTERVAL_SECONDS = 300
 # [ADDED] Orphaned temp files (e.g. from crashed jobs) older than this are purged
 TEMP_MAX_AGE_HOURS = 1
+# main.generate() writes each video to videos/<uuid4>.mp4
+VIDEOS_DIR = os.path.join(os.path.dirname(__file__), "videos")
 
 # CORS configuration
 ALLOWED_ORIGINS = os.getenv(
@@ -111,10 +113,6 @@ MAX_CONCURRENT_JOBS_PER_IP = 2
 
 # Maximum total jobs in memory (prevent memory exhaustion)
 MAX_TOTAL_JOBS = 100
-
-# STRIDE: Spoofing - Only trust X-Forwarded-For when behind a known proxy
-# Set TRUST_PROXY=true when deploying behind Nginx/load balancer
-TRUST_PROXY = os.getenv("TRUST_PROXY", "false").lower() == "true"
 
 # =============================================================================
 # RATE LIMITER SETUP
@@ -191,35 +189,16 @@ def validate_job_id(job_id: str) -> bool:
 
 def get_client_ip(request: Request) -> str:
     """
-    Extract client IP with secure proxy handling.
+    Client IP for job caps, ownership checks and the audit log.
 
-    STRIDE: Addresses Spoofing by only trusting X-Forwarded-For when
-    explicitly configured (behind a trusted reverse proxy like Nginx).
+    STRIDE: Addresses Spoofing. Uses the connection's client address. Behind
+    Nginx, Uvicorn's proxy-headers support has already set it from
+    X-Forwarded-For, trusting that header only from FORWARDED_ALLOW_IPS
+    (default 127.0.0.1, i.e. Nginx on the same host) and taking the address
+    Nginx appended. Parsing X-Forwarded-For here would trust its first entry,
+    which the client controls.
     """
-    if TRUST_PROXY:
-        # Only trust proxy headers when configured
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            # Take the first IP (original client) from the chain
-            ip = forwarded.split(",")[0].strip()
-            # Validate IP format to prevent injection
-            if _is_valid_ip(ip):
-                return ip
-            # Fall back to direct connection if invalid
-            return request.client.host if request.client else "unknown"
-
-    # Direct connection - use actual client IP
     return request.client.host if request.client else "unknown"
-
-
-def _is_valid_ip(ip: str) -> bool:
-    """Validate IP address format (IPv4 or IPv6)."""
-    import ipaddress
-    try:
-        ipaddress.ip_address(ip)
-        return True
-    except ValueError:
-        return False
 
 
 def verify_job_ownership(request: Request, job_id: str) -> bool:
@@ -338,15 +317,15 @@ async def lifespan(app: FastAPI):
 
     print(f"[Startup] Auto-cleanup enabled: videos expire after {VIDEO_MAX_AGE_MINUTES} minutes")
     print(f"[Startup] Rate limits: generate={RATE_LIMIT_GENERATE}, status={RATE_LIMIT_STATUS}")
-    print(f"[Startup] Trust proxy: {TRUST_PROXY}")
     print(f"[Startup] Audit logging to: {LOGS_DIR}/audit.log")
 
-    # Clean up leftover videos from previous runs
-    videos_dir = os.path.join(os.path.dirname(__file__), "videos")
-    if os.path.exists(videos_dir):
-        for filename in os.listdir(videos_dir):
-            if filename.endswith(".mp4"):
-                filepath = os.path.join(videos_dir, filename)
+    # Clean up generated videos (<uuid>.mp4) left over from previous runs.
+    # Other files in videos/, such as media a user put there, are kept.
+    if os.path.exists(VIDEOS_DIR):
+        for filename in os.listdir(VIDEOS_DIR):
+            stem, ext = os.path.splitext(filename)
+            if ext == ".mp4" and UUID_PATTERN.match(stem):
+                filepath = os.path.join(VIDEOS_DIR, filename)
                 try:
                     os.remove(filepath)
                     print(f"[Startup] Cleaned up leftover video: {filename}")
@@ -381,10 +360,13 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Serve static frontend files in production
+# Serve static frontend files in production. STATIC_DIR holds the React build
+# (index.html at the top level); the hashed JS/CSS bundles that index.html
+# loads from /static/js/... and /static/css/... are in its static/ subfolder.
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(STATIC_DIR):
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+STATIC_ASSETS_DIR = os.path.join(STATIC_DIR, "static")
+if os.path.exists(STATIC_ASSETS_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_ASSETS_DIR), name="static")
 
 # CORS middleware with restricted origins
 app.add_middleware(

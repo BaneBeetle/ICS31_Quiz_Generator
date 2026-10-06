@@ -1,0 +1,32 @@
+# Keep the build context small and free of secrets and media. Without this,
+# `COPY frontend/ ./` would also copy a local node_modules over the one that
+# `npm ci` installs in the image.
+
+# Secrets
+.env
+.env.*
+*.env
+*.pem
+*.key
+
+# Media (mounted at run time, see docker-compose.yml) and runtime output
+audio/
+minecraft/
+videos/
+temp/
+logs/
+datasets/
+*.mp4
+*.mp3
+*.wav
+
+# Dependencies, builds and caches
+**/node_modules
+frontend/build/
+static/
+venv/
+.venv/
+**/__pycache__
+.pytest_cache/
+
+.git/

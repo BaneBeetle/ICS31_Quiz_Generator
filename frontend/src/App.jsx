@@ -4,7 +4,13 @@ import LoadingScreen from './components/LoadingScreen';
 import VideoPlayer from './components/VideoPlayer';
 import './App.css';
 
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+// The production build is served by the API server (directly or behind Nginx),
+// so it calls the API on its own origin. The dev server (`npm start`, port 3000)
+// calls the API on port 8000. REACT_APP_API_URL, read at build/start time,
+// overrides both.
+const API_BASE =
+  process.env.REACT_APP_API_URL ??
+  (process.env.NODE_ENV === 'development' ? 'http://localhost:8000' : '');
 
 function App() {
   const [stage, setStage] = useState('input'); // input, loading, complete, error
@@ -42,6 +48,11 @@ function App() {
   const pollStatus = useCallback(async (id) => {
     try {
       const response = await fetch(`${API_BASE}/api/status/${id}`);
+      if (response.status === 429) {
+        // Rate limited: wait and keep polling instead of failing the job
+        setTimeout(() => pollStatus(id), 5000);
+        return;
+      }
       const data = await response.json();
 
       if (!response.ok) {
@@ -64,7 +75,7 @@ function App() {
 
       // Continue polling if still processing
       if (data.status === 'processing' || data.status === 'pending') {
-        setTimeout(() => pollStatus(id), 1000);
+        setTimeout(() => pollStatus(id), 2000);
       }
     } catch (err) {
       setError(err.message);

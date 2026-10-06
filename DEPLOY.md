@@ -27,7 +27,7 @@ cd "path\to\ICS31_Quiz_Generator"
 # Upload everything using SCP
 scp -i "path\to\your-key.pem" -r `
   main.py server.py gpt_api.py tiktokvoice.py moviepy_config.py `
-  install_font.py requirements.txt OpenSans-ExtraBold.ttf `
+  install_font.py requirements.txt OpenSans-ExtraBold.ttf .env.example `
   frontend audio minecraft deploy `
   ubuntu@<EC2_PUBLIC_IP>:~/ics31-quiz/
 ```
@@ -44,6 +44,10 @@ chmod +x deploy/*.sh
 # Install the application
 ./deploy/install_app.sh
 
+# Set your OpenAI API key (the service reads it from .env)
+cp .env.example .env
+nano .env        # set OPENAI_API_KEY=sk-...
+
 # Set up as a system service (auto-start on boot)
 sudo ./deploy/setup_service.sh
 
@@ -51,16 +55,10 @@ sudo ./deploy/setup_service.sh
 sudo ./deploy/setup_nginx.sh
 ```
 
-### Step 5: Set your OpenAI API key
+### Step 5: Change the API key later
 ```bash
-# Edit the service to include your API key
-sudo systemctl edit ics31-quiz
-
-# Add these lines:
-[Service]
-Environment="OPENAI_API_KEY=your-api-key-here"
-
-# Save and restart
+# Edit .env, then restart the service
+nano ~/ics31-quiz/.env
 sudo systemctl restart ics31-quiz
 ```
 

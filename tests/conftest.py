@@ -79,6 +79,15 @@ def reset_server_state():
     server.active_jobs_by_ip.clear()
 
 
+@pytest.fixture(autouse=True)
+def isolate_app_dirs(tmp_path, monkeypatch):
+    """Point the server at empty temporary frontend and videos directories, so
+    a local frontend build in static/ doesn't change what the routes return,
+    and the startup cleanup never deletes real generated videos."""
+    monkeypatch.setattr(server, "STATIC_DIR", str(tmp_path / "no-frontend-build"))
+    monkeypatch.setattr(server, "VIDEOS_DIR", str(tmp_path / "videos"))
+
+
 @pytest.fixture
 def client():
     """Fresh TestClient for each test.  raise_server_exceptions=False so that

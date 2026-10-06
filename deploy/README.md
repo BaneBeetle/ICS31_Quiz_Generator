@@ -57,6 +57,12 @@ git clone https://github.com/YOUR_USERNAME/ICS31_QuizGenerator.git .
 
 # Create environment file
 echo "OPENAI_API_KEY=your_openai_api_key_here" > .env
+
+# Add your media (not in the repo or the image); docker-compose.yml mounts
+# these folders into the container read-only
+mkdir -p audio minecraft
+#   audio/clock.mp3, optional audio/wii_shop.mp3, minecraft/minecraft1.mp4
+#   e.g. from your machine: scp -i your-key.pem -r audio minecraft <user>@<public-ip>:/opt/quiz-generator/
 ```
 
 ## Step 5: Deploy

@@ -31,7 +31,7 @@ command-line entry point (`python main.py`) still works.
 4. **Render.** The background clip is resized to 576 px wide and looped or trimmed to the
    narration length. Captions are rendered by ImageMagick in Open Sans ExtraBold and
    composited on top, and the result is encoded as H.264/AAC (24 fps, `ultrafast` preset,
-   CRF 28) to `videos/<uuid>.mp4`.
+   CRF 28) to `videos/<uuid>.mp4`. MoviePy's temporary soundtrack is written to `temp/`.
 
 ### Backend (`server.py`)
 
@@ -50,18 +50,22 @@ command-line entry point (`python main.py`) still works.
   endpoints: 30/minute), at most 2 active jobs per client IP (`429`), and at most 100 jobs in
   memory (`503`).
 - **Cleanup.** A background task runs every 5 minutes and removes jobs and videos older than
-  30 minutes and orphaned `temp/` files older than 1 hour. Leftover `.mp4` files in `videos/`
-  are deleted at startup, and job videos at shutdown. The frontend deletes its job when the
+  30 minutes and orphaned `temp/` files older than 1 hour. Leftover generated videos
+  (`videos/<uuid>.mp4`) are deleted at startup, and job videos at shutdown; other files in
+  `videos/` are never deleted. The frontend deletes its job when the
   user starts a new quiz (`DELETE /api/job/{job_id}`) or closes the tab (`navigator.sendBeacon`
   to `POST /api/job/{job_id}/cleanup`).
 - **Audit log.** Job starts, completions and failures, downloads, deletions, and rejected or
   denied requests are written as JSON lines to `logs/audit.log`.
-- **Proxy support.** With `TRUST_PROXY=true` the client IP is taken from the first
-  `X-Forwarded-For` entry (after validation); otherwise the socket peer address is used.
-- **CORS and static files.** CORS is limited to `ALLOWED_ORIGINS` (GET, POST, DELETE). If a
-  `static/` directory exists next to `server.py`, it is mounted at `/static` and `/` returns
-  `static/index.html`. Any other unmatched path returns the matching file from `static/`,
-  falling back to `index.html`.
+- **Client IP.** Job caps, ownership checks and the audit log use the connection's client
+  address. Behind Nginx, Uvicorn sets it from `X-Forwarded-For` but trusts that header only from
+  `FORWARDED_ALLOW_IPS` (default `127.0.0.1`) and takes the address Nginx appended, so a client
+  can't spoof it.
+- **CORS and static files.** CORS is limited to `ALLOWED_ORIGINS` (GET, POST, DELETE). The
+  production frontend is the React build copied to `static/` next to `server.py`: `/` returns
+  `static/index.html`, `/static/...` serves the build's hashed JS and CSS bundles from
+  `static/static/` (missing bundles are a `404`), and any other unmatched path returns the
+  matching file from `static/`, falling back to `index.html`.
 
 Job state lives in memory, so jobs do not survive a restart and the server is meant to run as
 a single process.
@@ -71,18 +75,21 @@ a single process.
 A Create React App (React 18) page with three states: a topic form with suggestion chips and
 client-side validation that mirrors the server rules, a progress screen driven by status
 polling, and a player that streams the finished video with Download and Generate New Quiz
-buttons. It calls the API at `REACT_APP_API_URL`, which is read at build/start time and
-defaults to `http://localhost:8000`.
+buttons. The production build calls the API on the origin it is served from (relative
+`/api/...` URLs), so it works wherever FastAPI or Nginx serves it. The development server
+(`npm start`, port 3000) calls `http://localhost:8000`. `REACT_APP_API_URL`, read at
+build/start time, overrides both.
 
 ### Packaging and deployment
 
-- **Docker.** The multi-stage `Dockerfile` builds the React app on `node:18-alpine`, then, on
-  `python:3.12-slim`, installs FFmpeg, ImageMagick (with the policy change MoviePy needs to
-  render text) and the Python dependencies, copies the backend modules and the React build
-  (as `static/`), and runs `uvicorn server:app` on port 8000. `docker-compose.yml` runs that
-  image with `OPENAI_API_KEY` taken from your environment or `.env`, mounts `videos/` and
-  `temp/`, and defines a health check on `/api/health`. A `dev` profile adds the React dev
-  server on port 3000.
+- **Docker.** The multi-stage `Dockerfile` builds the React app on `node:20-alpine` with
+  `npm ci`, then, on `python:3.12-slim` (Debian trixie), installs FFmpeg, ImageMagick (with the
+  policy change MoviePy needs to render text) and the Python dependencies, copies the backend
+  modules, the caption font and the React build (as `static/`), and runs `uvicorn server:app`
+  on port 8000. `docker-compose.yml` runs that image with `OPENAI_API_KEY` taken from your
+  environment or `.env`, mounts `videos/` and `temp/`, mounts your `audio/` and `minecraft/`
+  media read-only, and defines a health check on `/api/health` (a Python one-liner, since the
+  image has no curl). A `dev` profile adds the React dev server on port 3000.
 - **Docker on EC2.** `deploy/ec2-setup.sh` installs Docker, Docker Compose and Git on Amazon
   Linux or Ubuntu, and `deploy/deploy.sh` pulls the repository, rebuilds the containers and
   checks `/api/health`. See [deploy/README.md](deploy/README.md).
@@ -94,7 +101,8 @@ defaults to `http://localhost:8000`.
   - `deploy/setup_service.sh` installs an `ics31-quiz` systemd unit that runs
     `python server.py` with the environment from `.env`. It sets `Restart=always` and
     sandboxing options (`NoNewPrivileges`, `ProtectSystem=strict`, `ProtectHome=read-only`,
-    `PrivateTmp`).
+    `PrivateTmp`) that leave only `videos/`, `temp/` and `logs/` writable
+    (`ReadWritePaths`), and it creates those directories before starting the service.
   - `deploy/setup_nginx.sh` puts Nginx in front on port 80. It adds per-IP rate limits (1
     request/minute with a burst of 2 for `/api/generate`, 10 requests/second elsewhere), a 1 KB
     request-body limit, short client timeouts, security headers and unbuffered video
@@ -151,20 +159,13 @@ rights to use. `audio/`, `minecraft/` and all `.mp3`/`.mp4` files are git-ignore
 | `wii_shop.mp3`, background music | No | Anywhere under the project directory, e.g. `audio/wii_shop.mp3` |
 | `OpenSans-ExtraBold.ttf`, caption font | Included | Project root |
 
-Don't put the background clip in `videos/`, because the server deletes `.mp4` files there on
-startup. A 9:16 clip fills the frame; other clips are still scaled to 576 px wide.
+Keep media in `audio/` and `minecraft/`. `videos/` holds generated output, and the server only
+ever deletes the `<uuid>.mp4` files it generated there. A 9:16 clip fills the frame; other
+clips are still scaled to 576 px wide.
 
-The Docker image contains neither the media nor the font. Mount them, for example with a
-`docker-compose.override.yml`:
-
-```yaml
-services:
-  quiz-generator:
-    volumes:
-      - ./audio:/app/audio:ro
-      - ./minecraft:/app/minecraft:ro
-      - ./OpenSans-ExtraBold.ttf:/app/OpenSans-ExtraBold.ttf:ro
-```
+The Docker image includes the font but no media. `docker-compose.yml` mounts `audio/` and
+`minecraft/` from the project directory into the container read-only, so put your files there
+before `docker compose up`.
 
 ### Configuration
 
@@ -177,16 +178,14 @@ python-dotenv. Docker Compose reads it to fill in `OPENAI_API_KEY`.
 | `PORT` | `8000` | Port used by `python server.py` |
 | `DEBUG` | `false` | FastAPI debug mode and console audit logging |
 | `ALLOWED_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated CORS origins |
-| `TRUST_PROXY` | `false` | Trust `X-Forwarded-For`; enable only behind a reverse proxy |
-| `REACT_APP_API_URL` | `http://localhost:8000` | API base URL compiled into the frontend |
-
-`.env.example` sets `TRUST_PROXY=true` for the Nginx deployment. Set it to `false` when the app
-is reachable directly.
+| `FORWARDED_ALLOW_IPS` | `127.0.0.1` | Proxies whose `X-Forwarded-For` Uvicorn trusts; the default fits Nginx on the same host |
+| `REACT_APP_API_URL` | Same origin; `http://localhost:8000` under `npm start` | API base URL compiled into the frontend. Set it only if the API is on another origin |
 
 ### Run with Docker Compose
 
 ```bash
 cp .env.example .env              # then set OPENAI_API_KEY
+# put your media in audio/ and minecraft/ (see "Media files")
 docker compose up --build         # http://localhost:8000
 docker compose --profile dev up   # also starts the React dev server on :3000
 ```
@@ -211,14 +210,23 @@ the other targets (`run`, `test`, `clean`, `deploy`).
 
 ### Command-line mode
 
-`python main.py` prompts for a topic and writes the video to `videos/`.
+`python main.py` prompts for a topic and writes the video to `videos/<uuid>.mp4`. Move it
+elsewhere to keep it: the server deletes generated videos left in `videos/` when it starts.
 
 ## Tests and CI
 
 `tests/test_api.py` contains 46 tests that exercise every API endpoint through FastAPI's
 `TestClient`: happy paths, input validation, ownership checks, and the capacity and
-concurrency limits. `tests/conftest.py` replaces `main`, `moviepy_config` and `tiktokvoice` with
-mocks before importing the server, so the tests need no API key, FFmpeg or ImageMagick.
+concurrency limits. `tests/test_frontend.py` serves a stand-in React build and checks that
+`index.html` and its JS/CSS bundles load, and `tests/test_startup_cleanup.py` checks that
+startup deletes leftover generated videos but not other files in `videos/`.
+`tests/conftest.py` replaces `main`, `moviepy_config` and `tiktokvoice` with mocks before
+importing the server, and points the server at temporary `static/` and `videos/` folders, so
+the tests need no API key, system FFmpeg or ImageMagick and never touch your build or videos.
+`tests/test_pipeline.py` runs `main.py`'s real MoviePy code on a tiny synthetic clip, using
+the FFmpeg binary that `imageio-ffmpeg` installs. It checks that the temporary soundtrack goes
+to `temp/` rather than the working directory, and that frames can be resized with the
+installed Pillow.
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
@@ -226,8 +234,11 @@ pytest tests/ -v                  # or: make test
 ```
 
 GitHub Actions (`.github/workflows/ci.yml`) runs on pushes and pull requests to `main`. One job
-runs the test suite on Python 3.12. The other runs `npm ci` and `npm run build` for the frontend
-on Node.js 20 and uploads the build as an artifact for 7 days.
+runs the test suite on Python 3.12. Another runs `npm ci` and `npm run build` for the frontend
+on Node.js 20, fails if the bundle hardcodes `http://localhost:8000`, and uploads the build as
+an artifact for 7 days. A third builds the Docker image (it is not pushed), renders a caption
+inside it, waits for the Compose health check, and checks that the frontend and its bundles
+load.
 
 ## Project layout
 
@@ -236,7 +247,7 @@ server.py               FastAPI app: job API, validation, limits, cleanup, audit
 main.py                 Video pipeline (also the CLI: python main.py)
 gpt_api.py              OpenAI question generation
 tiktokvoice.py          TikTok TTS client
-moviepy_config.py       Finds ImageMagick for MoviePy on Windows
+moviepy_config.py       Finds ImageMagick for MoviePy on Windows; restores a Pillow alias MoviePy uses
 install_font.py         Installs the caption font for the current user
 OpenSans-ExtraBold.ttf  Caption font (SIL Open Font License 1.1)
 frontend/               React app (Create React App)

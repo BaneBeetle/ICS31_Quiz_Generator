@@ -50,8 +50,8 @@ test: ## Run the pytest suite
 # clean — remove generated artifacts (does NOT touch source files)
 # ---------------------------------------------------------------------------
 clean: ## Remove generated videos, temp files, logs, and build artifacts
-	@echo "[clean] Removing generated videos..."
-	find videos/ -name "*.mp4" -delete 2>/dev/null || true
+	@echo "[clean] Removing generated videos (videos/<uuid>.mp4)..."
+	find videos/ -name '????????-????-????-????-????????????.mp4' -delete 2>/dev/null || true
 	@echo "[clean] Removing temp files..."
 	rm -rf temp/*
 	@echo "[clean] Removing log files..."
